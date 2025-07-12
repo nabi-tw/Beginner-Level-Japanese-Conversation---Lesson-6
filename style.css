@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日本語会話練習カードゲーム</title>
+    <style>
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background-color: #f0f8ff;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        
+        .game-container {
+            background-color: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            padding: 30px;
+            max-width: 600px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #ff6b6b;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 1.2em;
+            cursor: pointer;
+            transition: transform 0.3s;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .chat-area {
+            background-color: #f5f5f5;
+            border-radius: 10px;
+            padding: 20px;
+            height: 300px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+        }
+        
+        .message {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 10px;
+        }
+        
+        .bot-message {
+            background-color: #e3f2fd;
+            text-align: left;
+        }
+        
+        .user-message {
+            background-color: #e8f5e9;
+            text-align: right;
+            margin-left: 50px;
+        }
+        
+        .correction {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            margin: 10px 0;
+            padding: 10px;
+        }
+        
+        .input-area {
+            display: flex;
+            gap: 10px;
+        }
+        
+        input[type="text"] {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+        
+        .new-topic-btn {
+            background-color: #ff6b6b;
+            margin-top: 10px;
+            width: 100%;
+        }
+        
+        .new-topic-btn:hover {
+            background-color: #ff5252;
+        }
+        
+        .progress {
+            text-align: center;
+            color: #666;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+        
+        .reset-btn {
+            background-color: #9c27b0;
+            margin-top: 10px;
+            width: 100%;
+        }
+        
+        .reset-btn:hover {
+            background-color: #7b1fa2;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>🎌 日本語会話練習カードゲーム 🎌</h1>
+        
+        <div class="card" id="questionCard">
+            クリックして質問カードを引く！
+        </div>
+        
+        <div class="chat-area" id="chatArea">
+            <!-- チャットメッセージがここに表示されます -->
+        </div>
+        
+        <div class="input-area">
+            <input type="text" id="userInput" placeholder="ここに答えを書いてください..." disabled>
+            <button id="sendBtn" disabled>送信</button>
+        </div>
+        
+        <button class="new-topic-btn" id="newTopicBtn" style="display:none;">練習得不錯喔！那我們來試試下一題好嗎？</button>
+        
+        <div class="progress" id="progress"></div>
+        
+        <button class="reset-btn" id="resetBtn" style="display:none;">すべての質問をリセット</button>
+    </div>
+
+    <script>
+        class JapaneseConversationBot {
+            constructor() {
+                this.allQuestions = [
+                    "こんにちは。お名前は何ですか？",
+                    "きょうは何曜日ですか？",
+                    "どこでごはんを食べますか？",
+                    "いっしょに映画を見ませんか？",
+                    "きのう、何をしましたか？",
+                    "何時に起きますか？",
+                    "うちはどこですか？",
+                    "どこで日本語を勉強しますか？",
+                    "週末に何をしますか？",
+                    "何時に寝ますか？",
+                    "朝ごはんを食べますか？",
+                    "学校はどこですか？",
+                    "あした、どこへ行きますか？",
+                    "コーヒーを飲みませんか？",
+                    "学校は何時から何時までですか？",
+                    "日本の食べ物を食べましたか？",
+                    "何で学校へ行きますか？",
+                    "きょう、何時に家へ帰りますか？",
+                    "何を買いますか？",
+                    "本を読みますか？"
+                ];
+                
+                this.usedQuestions = this.loadUsedQuestions();
+                this.availableQuestions = this.getAvailableQuestions();
+                
+                this.currentQuestion = "";
+                this.conversationTurn = 0;
+                this.maxTurns = 5;
+                
+                // 会話管理
+                this.conversationHistory = [];
+                this.allAskedQuestions = new Set(); // 今までに聞いたすべての質問
+                this.extractedInfo = {}; // 抽出した情報
+                this.negativeCount = 0;
+            }
+            
+            loadUsedQuestions() {
+                const saved = localStorage.getItem('usedQuestions');
+                return saved ? JSON.parse(saved) : [];
+            }
+            
+            saveUsedQuestions() {
+                localStorage.setItem('usedQuestions', JSON.stringify(this.usedQuestions));
+            }
+            
+            getAvailableQuestions() {
+                return this.allQuestions.filter(q => !this.usedQuestions.includes(q));
+            }
+            
+            resetQuestions() {
+                this.usedQuestions = [];
+                this.availableQuestions = [...this.allQuestions];
+                localStorage.removeItem('usedQuestions');
+            }
+            
+            getRandomQuestion() {
+                if (this.availableQuestions.length === 0) {
+                    return null;
+                }
+                
+                const index = Math.floor(Math.random() * this.availableQuestions.length);
+                const question = this.availableQuestions[index];
+                
+                this.usedQuestions.push(question);
+                this.saveUsedQuestions();
+                
+                this.availableQuestions = this.availableQuestions.filter(q => q !== question);
+                
+                return question;
+            }
+            
+            getProgress() {
+                return {
+                    used: this.usedQuestions.length,
+                    total: this.allQuestions.length,
+                    remaining: this.availableQuestions.length
+                };
+            }
+            
+            extractVerb(userInput) {
+                const verbPatterns = [
+                    { pattern: /勉強します/, verb: "勉強します" },
+                    { pattern: /見ます/, verb: "見ます" },
+                    { pattern: /食べます/, verb: "食べます" },
+                    { pattern: /飲みます/, verb: "飲みます" },
+                    { pattern: /行きます/, verb: "行きます" },
+                    { pattern: /来ます/, verb: "来ます" },
+                    { pattern: /帰ります/, verb: "帰ります" },
+                    { pattern: /します/, verb: "します" },
+                    { pattern: /買います/, verb: "買います" },
+                    { pattern: /読みます/, verb: "読みます" },
+                    { pattern: /書きます/, verb: "書きます" },
+                    { pattern: /聞きます/, verb: "聞きます" },
+                    { pattern: /起きます/, verb: "起きます" },
+                    { pattern: /寝ます/, verb: "寝ます" }
+                ];
+                
+                const sortedPatterns = verbPatterns.sort((a, b) => b.verb.length - a.verb.length);
+                
+                for (let vp of sortedPatterns) {
+                    if (userInput.match(vp.pattern)) {
+                        return vp.verb;
+                    }
+                }
+                
+                return null;
+            }
+            
+            convertToPast(verb) {
+                const conversions = {
+                    "見ます": "見ました",
+                    "食べます": "食べました",
+                    "飲みます": "飲みました",
+                    "行きます": "行きました",
+                    "来ます": "来ました",
+                    "帰ります": "帰りました",
+                    "します": "しました",
+                    "勉強します": "勉強しました",
+                    "買います": "買いました",
+                    "読みます": "読みました",
+                    "書きます": "書きました",
+                    "聞きます": "聞きました",
+                    "起きます": "起きました",
+                    "寝ます": "寝ました"
+                };
+                
+                return conversions[verb] || verb;
+            }
+            
+            extractInformation(userInput) {
+                // 交通手段
+                if (userInput.includes("バス") || userInput.includes("電車") || 
+                    userInput.includes("自転車") || userInput.includes("歩いて") || 
+                    userInput.includes("車")) {
+                    this.extractedInfo.transport = true;
+                }
+                
+                // 時間
+                if (userInput.match(/\d+時/)) {
+                    this.extractedInfo.time = true;
+                }
+                
+                // 場所
+                if (userInput.includes("で") || userInput.includes("へ") || userInput.includes("に")) {
+                    this.extractedInfo.place = true;
+                }
+                
+                // 人
+                if (userInput.includes("と") || userInput.includes("一人で") || userInput.includes("ひとりで")) {
+                    this.extractedInfo.person = true;
+                }
+            }
+            
+            checkGrammar(userInput) {
+                const corrections = [];
+                const currentQ = this.conversationHistory.length > 0 
+                    ? this.conversationHistory[this.conversationHistory.length - 1].question 
+                    : this.currentQuestion;
+                
+                if (userInput.trim() === "いいえ") {
+                    if (currentQ.includes("食べますか")) {
+                        corrections.push({
+                            error: "いいえ",
+                            correction: "いいえ、食べません",
+                            explanation: "「いいえ」の後に動詞の否定形を使ってください。"
+                        });
+                    } else if (currentQ.includes("飲みますか")) {
+                        corrections.push({
+                            error: "いいえ",
+                            correction: "いいえ、飲みません",
+                            explanation: "「いいえ」の後に動詞の否定形を使ってください。"
+                        });
+                    } else if (currentQ.includes("しますか")) {
+                        corrections.push({
+                            error: "いいえ",
+                            correction: "いいえ、しません",
+                            explanation: "「いいえ」の後に動詞の否定形を使ってください。"
+                        });
+                    } else if (currentQ.includes("行きますか")) {
+                        corrections.push({
+                            error: "いいえ",
+                            correction: "いいえ、行きません",
+                            explanation: "「いいえ」の後に動詞の否定形を使ってください。"
+                        });
+                    } else if (currentQ.includes("読みますか")) {
+                        corrections.push({
+                            error: "いいえ",
+                            correction: "いいえ、読みません",
+                            explanation: "「いいえ」の後に動詞の否定形を使ってください。"
+                        });
+                    }
+                }
+                
+                if (userInput.includes("を") && userInput.includes("行きます")) {
+                    corrections.push({
+                        error: "を行きます",
+                        correction: "へ行きます／に行きます",
+                        explanation: "場所へ行くときは「へ」か「に」を使います。"
+                    });
+                }
+                
+                return corrections;
+            }
+            
+            generateResponse(userInput) {
+                const corrections = this.checkGrammar(userInput);
+                let response = "";
+                
+                if (corrections.length > 0) {
+                    response = `ちょっとちがいます。「${corrections[0].correction}」がいいですね。${corrections[0].explanation}\n\n`;
+                }
+                
+                // 情報を抽出
+                this.extractInformation(userInput);
+                
+                // 会話履歴に追加
+                const currentQ = this.conversationHistory.length > 0 
+                    ? this.conversationHistory[this.conversationHistory.length - 1].question 
+                    : this.currentQuestion;
+                    
+                this.conversationHistory.push({
+                    question: currentQ,
+                    answer: userInput
+                });
+                
+                this.conversationTurn++;
+                
+                if (this.conversationTurn >= this.maxTurns) {
+                    response += "いい練習でしたね！じゃ、つぎの質問をしてもいいですか？";
+                    this.resetConversation();
+                } else {
+                    const followUpQuestion = this.getSmartFollowUpQuestion(userInput);
+                    
+                    if (followUpQuestion) {
+                        response += followUpQuestion.prefix + followUpQuestion.question;
+                        this.allAskedQuestions.add(followUpQuestion.question);
+                        
+                        // 次の質問として記録
+                        this.conversationHistory.push({
+                            question: followUpQuestion.question,
+                            answer: null // まだ答えていない
+                        });
+                    } else {
+                        response += "いい練習でしたね！";
+                        this.conversationTurn = this.maxTurns;
+                    }
+                }
+                
+                return response;
+            }
+            
+            getSmartFollowUpQuestion(userInput) {
+                const lastQuestion = this.conversationHistory[this.conversationHistory.length - 1].question;
+                const negativePatterns = ['ません', 'ない', 'いいえ', 'じゃありません'];
+                const isNegative = negativePatterns.some(pattern => userInput.includes(pattern));
+                
+                if (isNegative) {
+                    this.negativeCount++;
+                } else {
+                    this.negativeCount = 0;
+                }
+                
+                if (this.negativeCount >= 3) {
+                    return null;
+                }
+                
+                // すでに聞いた質問をチェック
+                const hasAsked = (question) => {
+                    return this.allAskedQuestions.has(question) || 
+                           this.conversationHistory.some(h => h.question === question);
+                };
+                
+                // 質問パターンごとの処理
+                if (lastQuestion.includes("お名前は何ですか")) {
+                    if (!hasAsked("学校はどこですか？")) {
+                        return { prefix: "はじめまして。", question: "学校はどこですか？" };
+                    }
+                }
+                
+                if (lastQuestion.includes("きょうは何曜日ですか")) {
+                    if (!hasAsked("きょうは何をしますか？")) {
+                        return { prefix: "そうですね。", question: "きょうは何をしますか？" };
+                    }
+                }
+                
+                if (lastQuestion.includes("どこでごはんを食べますか")) {
+                    if (userInput.includes("一人で") || userInput.includes("ひとりで")) {
+                        if (!hasAsked("何を食べますか？")) {
+                            return { prefix: "そうですか。", question: "何を食べますか？" };
+                        }
+                    } else if (userInput.includes("と")) {
+                        if (!hasAsked("何を食べますか？")) {
+                            return { prefix: "いいですね。", question: "何を食べますか？" };
+                        }
+                    } else if (userInput.includes("家") || userInput.includes("うち")) {
+                        if (!hasAsked("だれと食べますか？")) {
+                            return { prefix: "そうですか。", question: "だれと食べますか？" };
+                        }
+                    } else {
+                        if (!hasAsked("何を食べますか？")) {
+                            return { prefix: "いいですね。", question: "何を食べますか？" };
+                        }
+                    }
+                }
+                
+                if (lastQuestion.includes("いっしょに映画を見ませんか")) {
+                    if (isNegative) {
+                        if (!hasAsked("お茶を飲みませんか？")) {
+                            return { prefix: "そうですか。じゃ、", question: "お茶を飲みませんか？" };
+                        }
+                    } else {
+                        if (!hasAsked("どこで見ましょうか？")) {
+                            return { prefix: "いいですね！", question: "どこで見ましょうか？" };
+                        }
+                    }
+                }
+                
+                if (lastQuestion.includes("きのう、何をしましたか")) {
+                    if (isNegative || userInput.includes("何も")) {
+                        if (!hasAsked("きょうは何をしますか？")) {
+                            return { prefix: "そうですか。", question: "きょうは何をしますか？" };
+                        }
+                    } else if (userInput.includes("勉強")) {
+                        if (!hasAsked("何を勉強しましたか？")) {
+                            return { prefix: "そうですか。", question: "何を勉強しましたか？" };
+                        }
+                    } else {
+                        if (!hasAsked("どこでしましたか？")) {
+                            return { prefix: "そうですか。", question: "どこでしましたか？" };
+                        }
+                    }
+                }
+                
+                if (lastQuestion.includes("何時に起きますか")) {
+                    if (!hasAsked("朝ごはんを食べますか？")) {
+                        return { prefix: "そうですか。", question: "朝ごはんを食べますか？" };
+                    }
+                }
+                
+                if (lastQuestion.includes("何時に寝ますか")) {
+                    if (!hasAsked("朝、何時に起きますか？")) {
+                        return { prefix: "そうですか。", question: "朝、何時に起きますか？" };
+                    }
+                }
+                
+                if (lastQuestion.includes("朝ごはんを食べますか")) {
+                    if (isNegative) {
+                        if (!hasAsked("コーヒーを飲みますか？")) {
+                            return { prefix: "そうですか。", question: "コーヒーを飲みますか？" };
+                        }
+                    } else {
+                        if (!hasAsked("何を食べますか？")) {
+                            return { prefix: "いいですね。", question: "何を食べますか？" };
+                        }
+                    }
+                }
+                
+                if (lastQuestion.includes("コーヒーを飲みますか")) {
+                    if (isNegative) {
+                        if (!hasAsked("お茶を飲みますか？")) {
+                            return { prefix: "そうですか。", question: "お茶を飲みますか？" };
+                        }
+                    } else {
+                        if (!hasAsked("どこで飲みますか？")) {
+                            return { prefix: "いいですね。", question: "どこで飲みますか？" };
+                        }
+                    }
+                }
+                
+                if (lastQuestion.includes("どこで日本語を勉強しますか")) {
+                    if (userInput.includes("塾") || userInput.includes("学校")) {
+                        if (!hasAsked("何時から何時まで勉強しますか？") && !this.extractedInfo.time) {
+                            return { prefix: "そうですか。", question: "何時から何時まで勉強しますか？" };
+                        } else if (!hasAsked("毎日勉強しますか？")) {
+                            return { prefix: "そうですか。", question: "毎日勉強しますか？" };
+                        }
+                    } else {
+                        if (!hasAsked("毎日勉強しますか？")) {
+                            return { prefix: "そうですか。", question: "毎日勉強しますか？" };
+                        }
+                    }
+                }
+                
+                if (lastQuestion.includes("週末に何をしますか")) {
+                    const verb = this.extractVerb(userInput);
+                    if (userInput.includes("映画を見ます")) {
+                        if (userInput.includes("と")) {
+                            if (!hasAsked("どこで見ますか？")) {
+                                return { prefix: "いいですね。", question: "どこで見ますか？" };
+                            }
+                        } else if (!hasAsked("だれと見ますか？")) {
+                            return { prefix: "いいですね。", question: "だれと見ますか？" };
+                        }
+                    } else if (userInput.includes("勉強")) {
+                        if (!hasAsked("どこで勉強しますか？")) {
+                            return { prefix: "そうですか。", question: "どこで勉強しますか？" };
+                        }
+                    } else if (userInput.includes("一人で")) {
+                        if (verb && verb !== "します" && !hasAsked(`どこで${verb}か？`)) {
+                            return { prefix: "そうですか。", question: `どこで${verb}か？` };
+                        }
+                    } else if (!userInput.includes("と") && !this.extractedInfo.person) {
+                        if (verb && verb !== "します" && !hasAsked(`だれと${verb}か？`)) {
+                            return { prefix: "いいですね。", question: `だれと${verb}か？` };
+                        }
+                    }
+                }
+                
+                if (lastQuestion.includes("学校はどこですか")) {
+                    if (!hasAsked("何で学校へ行きますか？") && !this.extractedInfo.transport) {
+                        return { prefix: "そうですか。", question: "何で学校へ行きますか？" };
+                    } else if (!hasAsked("何時に学校へ行きますか？") && !this.extractedInfo.time) {
+                        return { prefix: "そうですか。", question: "何時に学校へ行きますか？" };
+                    }
+                }
+                
+                if (lastQuestion.includes("何で学校へ行きますか")) {
+                    if (!hasAsked("何時に学校へ行きますか？") && !this.extractedInfo.time) {
+                        return { prefix: "そうですか。", question: "何時に学校へ行きますか？" };
+                    } else if (!hasAsked("学校は何時から何時までですか？")) {
+                        return { prefix: "そうですか。", question: "学校は何時から何時までですか？" };
+                    }
+                }
+                
+                if (lastQuestion.includes("あした、どこへ行きますか")) {
+                    if (userInput.includes("会社") || userInput.includes("学校")) {
+                        if (!hasAsked("何時に行きますか？")) {
+                            return { prefix: "そうですか。", question: "何時に行きますか？" };
+                        }
+                    } else if (!hasAsked("だれと行きますか？") && !this.extractedInfo.person) {
+                        return { prefix: "そうですか。", question: "だれと行きますか？" };
+                    }
+                }
+                
+                if (lastQuestion.includes("日本の食べ物を食べましたか")) {
+                    if (isNegative) {
+                        if (!hasAsked("何を食べますか？")) {
+                            return { prefix: "そうですか。", question: "何を食べますか？" };
+                        }
+                    } else {
+                        if (!hasAsked("何を食べましたか？")) {
+                            return { prefix: "いいですね。", question: "何を食べましたか？" };
+                        }
+                    }
+                }
+                
+                if (lastQuestion.includes("何を食べましたか")) {
+                    if (!hasAsked("どこで食べましたか？")) {
+                        return { prefix: "そうですか。", question: "どこで食べましたか？" };
+                    }
+                }
+                
+                if (lastQuestion.includes("きょう、何時に家へ帰りますか")) {
+                    if (!hasAsked("だれと帰りますか？") && !this.extractedInfo.person) {
+                        return { prefix: "そうですか。", question: "だれと帰りますか？" };
+                    }
+                }
+                
+                if (lastQuestion.includes("何を買いますか")) {
+                    if (!hasAsked("どこで買いますか？")) {
+                        return { prefix: "いいですね。", question: "どこで買いますか？" };
+                    }
+                }
+                
+                if (lastQuestion.includes("本を読みますか")) {
+                    if (isNegative) {
+                        if (!hasAsked("新聞を読みますか？")) {
+                            return { prefix: "そうですか。", question: "新聞を読みますか？" };
+                        }
+                    } else {
+                        if (!hasAsked("何の本を読みますか？")) {
+                            return { prefix: "いいですね。", question: "何の本を読みますか？" };
+                        }
+                    }
+                }
+                
+                return null;
+            }
+            
+            resetConversation() {
+                this.conversationHistory = [];
+                this.allAskedQuestions.clear();
+                this.extractedInfo = {};
+                this.negativeCount = 0;
+            }
+        }
+        
+        // ゲームの初期化
+        const bot = new JapaneseConversationBot();
+        const questionCard = document.getElementById('questionCard');
+        const chatArea = document.getElementById('chatArea');
+        const userInput = document.getElementById('userInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const newTopicBtn = document.getElementById('newTopicBtn');
+        const progressDiv = document.getElementById('progress');
+        const resetBtn = document.getElementById('resetBtn');
+        
+        function updateProgress() {
+            const progress = bot.getProgress();
+            progressDiv.textContent = `質問: ${progress.used}/${progress.total} 完了 (残り: ${progress.remaining})`;
+            
+            if (progress.remaining === 0) {
+                questionCard.textContent = 'すべての質問を完了しました！🎉';
+                questionCard.style.pointerEvents = 'none';
+                resetBtn.style.display = 'block';
+            }
+        }
+        
+        updateProgress();
+        
+        questionCard.addEventListener('click', () => {
+            const question = bot.getRandomQuestion();
+            
+            if (question === null) {
+                alert('すべての質問を使い切りました！リセットボタンを押してください。');
+                return;
+            }
+            
+            bot.currentQuestion = question;
+            bot.conversationTurn = 0;
+            bot.resetConversation();
+            bot.allAskedQuestions.add(question);
+            
+            questionCard.textContent = bot.currentQuestion;
+            questionCard.style.pointerEvents = 'none';
+            
+            // 最初の質問を履歴に追加
+            bot.conversationHistory.push({
+                question: question,
+                answer: null
+            });
+            
+            addMessage(bot.currentQuestion, 'bot');
+            
+            userInput.disabled = false;
+            sendBtn.disabled = false;
+            userInput.focus();
+            
+            updateProgress();
+        });
+        
+        function addMessage(message, sender) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}-message`;
+            messageDiv.textContent = message;
+            chatArea.appendChild(messageDiv);
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+        
+        function sendMessage() {
+            const message = userInput.value.trim();
+            if (message === '') return;
+            
+            addMessage(message, 'user');
+            userInput.value = '';
+            
+            setTimeout(() => {
+                const response = bot.generateResponse(message);
+                addMessage(response, 'bot');
+                
+                if (bot.conversationTurn >= bot.maxTurns) {
+                    userInput.disabled = true;
+                    sendBtn.disabled = true;
+                    newTopicBtn.style.display = 'block';
+                }
+            }, 1000);
+        }
+        
+        sendBtn.addEventListener('click', sendMessage);
+        userInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+        
+        newTopicBtn.addEventListener('click', () => {
+            chatArea.innerHTML = '';
+            
+            const progress = bot.getProgress();
+            if (progress.remaining > 0) {
+                questionCard.textContent = 'クリックして質問カードを引く！';
+                questionCard.style.pointerEvents = 'auto';
+            }
+            
+            newTopicBtn.style.display = 'none';
+            userInput.disabled = true;
+            sendBtn.disabled = true;
+            bot.resetConversation();
+        });
+        
+        resetBtn.addEventListener('click', () => {
+            if (confirm('本当にすべての質問をリセットしますか？')) {
+                bot.resetQuestions();
+                chatArea.innerHTML = '';
+                questionCard.textContent = 'クリックして質問カードを引く！';
+                questionCard.style.pointerEvents = 'auto';
+                resetBtn.style.display = 'none';
+                updateProgress();
+            }
+        });
+    </script>
+</body>
+</html>
